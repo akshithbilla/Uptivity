@@ -1,38 +1,148 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import bodyParser from 'body-parser';
-import { schedulePing, stopPing, getLogs } from './pinger.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const express = require('express');
+const bodyParser = require('body-parser');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = 3000;
 
+let pingers = {};
+let logs = {};
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// EJS templating with inline templates
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(bodyParser.urlencoded({ extended: false }));
+app.engine('html', require('ejs').renderFile);
 
+// Main HTML with ping form and messages
+const homeTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ping Server App</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="card shadow p-4">
+      <h1 class="mb-4">🌐 Uptivity - Server Pinger</h1>
+
+      <% if (message) { %>
+        <div class="alert alert-info"><%= message %></div>
+      <% } %>
+
+      <form method="POST" action="/start" class="mb-3">
+        <div class="mb-3">
+          <label class="form-label">Backend URL (Render):</label>
+          <input name="url" type="url" class="form-control" placeholder="https://yourapp.onrender.com" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Interval (minutes):</label>
+          <input name="interval" type="number" min="1" class="form-control" placeholder="e.g. 5" required>
+        </div>
+        <button class="btn btn-success" type="submit">Start Pinging</button>
+      </form>
+
+      <form method="POST" action="/stop" class="mb-3">
+        <div class="mb-3">
+          <label class="form-label">URL to Stop Pinging:</label>
+          <input name="url" type="url" class="form-control" required>
+        </div>
+        <button class="btn btn-danger" type="submit">Stop Pinging</button>
+      </form>
+
+      <form method="GET" action="/logs">
+        <div class="mb-3">
+          <label class="form-label">URL to View Logs:</label>
+          <input name="url" type="url" class="form-control" required>
+        </div>
+        <button class="btn btn-primary" type="submit">View Logs</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+// Logs HTML
+const logsTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Logs for <%= url %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="card shadow p-4">
+      <h2>📝 Logs for:</h2>
+      <p><strong><%= url %></strong></p>
+      <a class="btn btn-secondary mb-3" href="/">⬅️ Back</a>
+
+      <% if (urlLogs.length === 0) { %>
+        <p>No logs available for this URL yet.</p>
+      <% } else { %>
+        <ul class="list-group">
+          <% urlLogs.forEach(log => { %>
+            <li class="list-group-item"><%= log %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+// Serve homepage
 app.get('/', (req, res) => {
-  res.render('index', { message: null });
+  res.send(require('ejs').render(homeTemplate, { message: null }));
 });
 
+// Start pinging
 app.post('/start', (req, res) => {
   const { url, interval } = req.body;
-  const success = schedulePing(url, parseInt(interval));
-  res.render('index', { message: success ? `\u2705 Started pinging ${url} every ${interval} minutes.` : `\u26a0\ufe0f Already pinging ${url}.` });
+  const msInterval = parseInt(interval) * 60 * 1000;
+
+  if (pingers[url]) {
+    return res.send(require('ejs').render(homeTemplate, { message: 'Already pinging this URL.' }));
+  }
+
+  logs[url] = logs[url] || [];
+
+  pingers[url] = setInterval(() => {
+    fetch(url)
+      .then(() => {
+        logs[url].push(`[${new Date().toLocaleString()}] Pinged ${url} ✅`);
+      })
+      .catch(() => {
+        logs[url].push(`[${new Date().toLocaleString()}] Failed to reach ${url} ❌`);
+      });
+  }, msInterval);
+
+  res.send(require('ejs').render(homeTemplate, { message: `Started pinging ${url} every ${interval} minute(s).` }));
 });
 
+// Stop pinging
 app.post('/stop', (req, res) => {
   const { url } = req.body;
-  const success = stopPing(url);
-  res.render('index', { message: success ? `\u274c Stopped pinging ${url}.` : `\u26a0\ufe0f ${url} was not being pinged.` });
+  if (pingers[url]) {
+    clearInterval(pingers[url]);
+    delete pingers[url];
+    res.send(require('ejs').render(homeTemplate, { message: `Stopped pinging ${url}.` }));
+  } else {
+    res.send(require('ejs').render(homeTemplate, { message: `No active pinging found for ${url}.` }));
+  }
 });
 
+// View logs
 app.get('/logs', (req, res) => {
-  const url = req.query.url;
-  const urlLogs = getLogs(url);
-  res.render('logs', { url, urlLogs });
+  const { url } = req.query;
+  const urlLogs = logs[url] || [];
+  res.send(require('ejs').render(logsTemplate, { url, urlLogs }));
 });
 
-app.listen(PORT, () => console.log(`\u2705 Server running on http://localhost:${PORT}`));
+// Start server
+app.listen(port, () => {
+  console.log(`✅ Server running at http://localhost:${port}`);
+});
