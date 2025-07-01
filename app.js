@@ -8,11 +8,11 @@ let logs = {};
 
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// EJS templating with inline templates
+
 app.set('view engine', 'ejs');
 app.engine('html', require('ejs').renderFile);
 
-// Main HTML with ping form and messages
+
 const homeTemplate = `
 <!DOCTYPE html>
 <html lang="en">
@@ -64,7 +64,7 @@ const homeTemplate = `
 </html>
 `;
 
-// Logs HTML
+
 const logsTemplate = `
 <!DOCTYPE html>
 <html>
@@ -94,12 +94,12 @@ const logsTemplate = `
 </html>
 `;
 
-// Serve homepage
+
 app.get('/', (req, res) => {
   res.send(require('ejs').render(homeTemplate, { message: null }));
 });
 
-// Start pinging
+
 app.post('/start', (req, res) => {
   const { url, interval } = req.body;
   const msInterval = parseInt(interval) * 60 * 1000;
@@ -129,7 +129,7 @@ app.post('/start', (req, res) => {
   res.send(require('ejs').render(homeTemplate, { message: `Started pinging ${url} every ${interval} minute(s).` }));
 });
 
-// Stop pinging
+
 app.post('/stop', (req, res) => {
   const { url } = req.body;
   if (pingers[url]) {
@@ -141,14 +141,14 @@ app.post('/stop', (req, res) => {
   }
 });
 
-// View logs
+
 app.get('/logs', (req, res) => {
   const { url } = req.query;
   const urlLogs = logs[url] || [];
   res.send(require('ejs').render(logsTemplate, { url, urlLogs }));
 });
 
-// Start server
+
 app.listen(port, () => {
   console.log(`✅ Server running at http://localhost:${port}`);
 });
