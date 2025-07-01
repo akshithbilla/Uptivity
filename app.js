@@ -113,10 +113,16 @@ app.post('/start', (req, res) => {
   pingers[url] = setInterval(() => {
     fetch(url)
       .then(() => {
-        logs[url].push(`[${new Date().toLocaleString()}] Pinged ${url} ✅`);
+       logs[url].push(
+  `[${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}] Pinged ${url} ✅`
+);
+
       })
       .catch(() => {
-        logs[url].push(`[${new Date().toLocaleString()}] Failed to reach ${url} ❌`);
+        logs[url].push(
+  `[${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}] Failed to reach ${url} ❌`
+);
+
       });
   }, msInterval);
 
