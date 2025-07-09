@@ -26,6 +26,7 @@ const homeTemplate = `
   <div class="container py-5">
     <div class="card shadow p-4">
       <h1 class="mb-4">🌐 Uptivity - Server Pinger</h1>
+       <h2 class="mb-4">Hang on...</h2>
 
       <% if (message) { %>
         <div class="alert alert-info"><%= message %></div>
